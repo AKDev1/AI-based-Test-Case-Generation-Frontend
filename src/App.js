@@ -248,7 +248,7 @@ function App() {
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <div className="mx-auto max-w-5xl px-5 py-8">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-          AI Testcase Generator — Requirements as Files
+          AI Testcase Generator
         </h1>
 
         {/* Upload Standard */}
