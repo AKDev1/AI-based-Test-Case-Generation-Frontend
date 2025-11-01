@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+test('renders configuration message when Google client ID is missing', () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  expect(screen.getByText(/AI Testcase Generator/i)).toBeInTheDocument();
+  expect(screen.getByText(/REACT_APP_GOOGLE_CLIENT_ID/i)).toBeInTheDocument();
 });

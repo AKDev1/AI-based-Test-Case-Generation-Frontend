@@ -1,8 +1,24 @@
 // frontend/src/App.js
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { GoogleLogin } from "@react-oauth/google";
+import { jwtDecode } from "jwt-decode";
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5000";
 
-function App() {
+function App({ googleClientId }) {
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem("googleProfile");
+      return stored ? JSON.parse(stored) : null;
+    } catch (error) {
+      console.warn("Unable to parse stored Google profile", error);
+      return null;
+    }
+  });
+  const [credential, setCredential] = useState(() =>
+    localStorage.getItem("googleCredential") || null
+  );
+  const [loginError, setLoginError] = useState("");
+
   const [stdFile, setStdFile] = useState(null);
   const [reqFile, setReqFile] = useState(null);
 
@@ -17,36 +33,127 @@ function App() {
   const [generationResults, setGenerationResults] = useState([]);
   const [currentReqView, setCurrentReqView] = useState(null); // { id, title, genId, testcases: [] }
   const [loading, setLoading] = useState(false);
+  const [regeneratingTcId, setRegeneratingTcId] = useState(null);
+  const [regeneratingReqId, setRegeneratingReqId] = useState(null);
+  const [regenerateReqPrompt, setRegenerateReqPrompt] = useState({});
+
+  const signOut = useCallback(() => {
+    setUser(null);
+    setCredential(null);
+    setLoginError("");
+    setStdFile(null);
+    setReqFile(null);
+    setStandards({});
+    setRequirements({});
+    setSelectedStandards([]);
+    setSelectedRequirements([]);
+    setPromptOverride("");
+    setGenerationResults([]);
+    setCurrentReqView(null);
+  }, [
+    setCredential,
+    setCurrentReqView,
+    setGenerationResults,
+    setLoginError,
+    setReqFile,
+    setRequirements,
+    setSelectedRequirements,
+    setSelectedStandards,
+    setStandards,
+    setStdFile,
+    setPromptOverride,
+    setUser,
+  ]);
 
   useEffect(() => {
-    fetchStandards();
-    fetchRequirements();
-    fetchGeneratedSummary();
-  }, []);
+    if (user && credential) {
+      localStorage.setItem("googleProfile", JSON.stringify(user));
+      localStorage.setItem("googleCredential", credential);
+    } else {
+      localStorage.removeItem("googleProfile");
+      localStorage.removeItem("googleCredential");
+    }
+  }, [credential, user]);
 
-  async function fetchStandards() {
+  const authorizedFetch = useCallback(
+    async (url, options = {}) => {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          ...(credential ? { Authorization: `Bearer ${credential}` } : {}),
+        },
+      });
+
+      if (response.status === 401) {
+        signOut();
+      }
+
+      return response;
+    },
+    [credential, signOut]
+  );
+
+  const handleLoginSuccess = useCallback(
+    (credentialResponse) => {
+      const token = credentialResponse?.credential;
+
+      if (!token) {
+        setLoginError("Google sign-in returned an empty credential.");
+        return;
+      }
+
+      try {
+        const profile = jwtDecode(token);
+        if (!profile || !profile.email) {
+          setLoginError("Your Google account must include an email address.");
+          return;
+        }
+
+        setUser({
+          name: profile.name || profile.email,
+          email: profile.email,
+          picture: profile.picture,
+        });
+        setCredential(token);
+        setLoginError("");
+      } catch (error) {
+        console.error("Failed to decode Google credential", error);
+        setLoginError("Unable to verify Google credential. Please try again.");
+      }
+    },
+    [setCredential, setLoginError, setUser]
+  );
+
+  const handleLoginError = useCallback(() => {
+    setLoginError("Google sign-in failed. Please try again.");
+  }, [setLoginError]);
+
+  const fetchStandards = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/standards`);
+      const res = await authorizedFetch(`${API_BASE}/standards`);
+      if (!res.ok) return;
       const data = await res.json();
       setStandards(data || {});
     } catch (e) {
       console.error(e);
     }
-  }
+  }, [authorizedFetch]);
 
-  async function fetchRequirements() {
+  const fetchRequirements = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/requirements`);
+      const res = await authorizedFetch(`${API_BASE}/requirements`);
+      if (!res.ok) return;
       const data = await res.json();
       setRequirements(data || {});
     } catch (e) {
       console.error(e);
     }
-  }
+  }, [authorizedFetch]);
 
-  async function fetchGeneratedSummary() {
+  const fetchGeneratedSummary = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/generated`);
+      const res = await authorizedFetch(`${API_BASE}/generated`);
       if (res.ok) {
         const data = await res.json();
         setGenerationResults(data || []);
@@ -54,7 +161,14 @@ function App() {
     } catch (e) {
       /* ignore */
     }
-  }
+  }, [authorizedFetch]);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchStandards();
+    fetchRequirements();
+    fetchGeneratedSummary();
+  }, [fetchGeneratedSummary, fetchRequirements, fetchStandards, user]);
 
   async function uploadStandard(e) {
     e.preventDefault();
@@ -62,7 +176,7 @@ function App() {
     const fd = new FormData();
     fd.append("standardFile", stdFile);
     try {
-      const res = await fetch(`${API_BASE}/upload`, {
+      const res = await authorizedFetch(`${API_BASE}/upload`, {
         method: "POST",
         body: fd,
       });
@@ -84,7 +198,7 @@ function App() {
     const fd = new FormData();
     fd.append("requirementFile", reqFile);
     try {
-      const res = await fetch(`${API_BASE}/requirements/upload`, {
+      const res = await authorizedFetch(`${API_BASE}/requirements/upload`, {
         method: "POST",
         body: fd,
       });
@@ -118,7 +232,7 @@ function App() {
       return alert("Select at least one standard");
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/testcases`, {
+      const res = await authorizedFetch(`${API_BASE}/testcases`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -131,10 +245,6 @@ function App() {
       if (res.ok) {
         alert("Testcases generated");
         await fetchGeneratedSummary();
-        setGenerationResults((prev) => [
-          ...(Array.isArray(data.results) ? data.results : []),
-          ...prev,
-        ]);
       } else {
         alert("Generation failed: " + (data.error || JSON.stringify(data)));
       }
@@ -148,7 +258,7 @@ function App() {
 
   async function viewTestcasesFor(genId) {
     try {
-      const res = await fetch(
+      const res = await authorizedFetch(
         `${API_BASE}/generated/requirement/${encodeURIComponent(genId)}`
       );
       const data = await res.json();
@@ -158,6 +268,7 @@ function App() {
           genId: data.id,
           title: data.requirementTitle,
           testcases: data.testcases,
+          selectedStandards: data.selectedStandards || [],
         });
         window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
       } else {
@@ -169,19 +280,81 @@ function App() {
     }
   }
 
-  async function regenerateSingle(genId, tcId) {
-    // Find the latest generated set for current requirement
-    const generatedSummary = await (await fetch(`${API_BASE}/generated`)).json();
-    const set = generatedSummary.find((s) => s.requirementId === currentReqView.id);
-    if (!set) return alert("Generated set not found for this requirement");
-    const gid = set.id;
+  async function regenerateRequirement(reqId, genId, promptOverride = "") {
+    setRegeneratingReqId(reqId);
     try {
-      const res = await fetch(
+      // Get the generated set to get selectedStandards
+      const genRes = await authorizedFetch(
+        `${API_BASE}/generated/requirement/${encodeURIComponent(genId)}`
+      );
+      if (!genRes.ok) {
+        alert("Unable to load generated set");
+        return;
+      }
+      const genData = await genRes.json();
+      const selectedStandards = genData.selectedStandards || [];
+      
+      if (selectedStandards.length === 0) {
+        alert("No standards found in the original generation");
+        return;
+      }
+
+      const res = await authorizedFetch(
+        `${API_BASE}/requirements/${encodeURIComponent(reqId)}/regenerate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            selectedStandards,
+            promptOverride: promptOverride || undefined,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Regenerated: ${data.count} testcases created`);
+        await fetchGeneratedSummary();
+        if (currentReqView && currentReqView.id === reqId) {
+          viewTestcasesFor(data.genId);
+        }
+      } else {
+        alert("Regenerate failed: " + JSON.stringify(data));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error regenerating");
+    } finally {
+      setRegeneratingReqId(null);
+      setRegenerateReqPrompt((prev) => {
+        const newPrev = { ...prev };
+        delete newPrev[reqId];
+        return newPrev;
+      });
+    }
+  }
+
+  async function regenerateSingle(genId, tcId, promptOverride = "") {
+    setRegeneratingTcId(tcId);
+    try {
+      // Find the latest generated set for current requirement
+      const summaryRes = await authorizedFetch(`${API_BASE}/generated`);
+      if (!summaryRes.ok) {
+        alert("Unable to load generated summary");
+        return;
+      }
+      const generatedSummary = await summaryRes.json();
+      const set = generatedSummary.find((s) => s.requirementId === currentReqView.id);
+      if (!set) {
+        alert("Generated set not found for this requirement");
+        return;
+      }
+      const gid = set.id;
+      const res = await authorizedFetch(
         `${API_BASE}/testcases/${encodeURIComponent(gid)}/regenerate/${encodeURIComponent(tcId)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ promptOverride: promptOverride || undefined }),
         }
       );
       const data = await res.json();
@@ -192,6 +365,8 @@ function App() {
     } catch (err) {
       console.error(err);
       alert("Error regenerating");
+    } finally {
+      setRegeneratingTcId(null);
     }
   }
 
@@ -199,13 +374,15 @@ function App() {
     // find genId from summary if not provided
     let gid = genId;
     if (!gid) {
-      const generatedSummary = await (await fetch(`${API_BASE}/generated`)).json();
+      const summaryRes = await authorizedFetch(`${API_BASE}/generated`);
+      if (!summaryRes.ok) return alert("Generated set lookup failed");
+      const generatedSummary = await summaryRes.json();
       const set = generatedSummary.find((s) => s.requirementId === tc.req_id);
       if (!set) return alert("Generated set not found");
       gid = set.id;
     }
     try {
-      const res = await fetch(
+      const res = await authorizedFetch(
         `${API_BASE}/testcases/${encodeURIComponent(gid)}/${encodeURIComponent(tc.tc_id)}`,
         {
           method: "PATCH",
@@ -227,7 +404,7 @@ function App() {
   async function createJira(genId, tcId) {
     const projectKey = prompt("Enter Jira project key (leave blank to use default):");
     try {
-      const res = await fetch(
+      const res = await authorizedFetch(
         `${API_BASE}/testcases/${encodeURIComponent(genId)}/${encodeURIComponent(tcId)}/jira`,
         {
           method: "POST",
@@ -244,12 +421,65 @@ function App() {
     }
   }
 
+  if (!googleClientId) {
+    return (
+      <div className="min-h-screen bg-gray-50 text-gray-900">
+        <div className="mx-auto max-w-lg px-5 py-24 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">AI Testcase Generator</h1>
+          <p className="mt-4 text-sm text-gray-600">
+            Google login requires the environment variable <code>REACT_APP_GOOGLE_CLIENT_ID</code> to be set.
+          </p>
+          <p className="mt-2 text-sm text-gray-600">
+            Update your <code>.env</code> file or runtime configuration and reload the app.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 text-gray-900">
+        <div className="mx-auto max-w-md px-5 py-24 text-center">
+          <h1 className="text-3xl font-semibold tracking-tight">AI Testcase Generator</h1>
+          <p className="mt-4 text-sm text-gray-600">Sign in with your Google account to continue.</p>
+          <div className="mt-8 flex justify-center">
+            <GoogleLogin onSuccess={handleLoginSuccess} onError={handleLoginError} useOneTap />
+          </div>
+          {loginError && <div className="mt-4 text-sm text-red-500">{loginError}</div>}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <div className="mx-auto max-w-5xl px-5 py-8">
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-          AI Testcase Generator
-        </h1>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
+            AI Testcase Generator
+          </h1>
+          <div className="flex items-center gap-3">
+            {user?.picture && (
+              <img
+                src={user.picture}
+                alt={user.name || user.email}
+                className="size-10 rounded-full border border-gray-200 object-cover"
+                referrerPolicy="no-referrer"
+              />
+            )}
+            <div className="text-right">
+              <div className="text-sm font-medium">{user.name || user.email}</div>
+              <div className="text-xs text-gray-500">{user.email}</div>
+            </div>
+            <button
+              onClick={signOut}
+              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
 
         {/* Upload Standard */}
         <section className="mt-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -354,14 +584,14 @@ function App() {
           {/* Prompt + CTA */}
           <div className="mt-4">
             <h4 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-600">
-              Prompt (editable) — optional
+              Additional Instructions (Optional)
             </h4>
             <textarea
               rows={4}
               value={promptOverride}
               onChange={(e) => setPromptOverride(e.target.value)}
               className="w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200"
-              placeholder="Optional prompt override (must instruct model to output only JSON)"
+              placeholder="Optional additional instructions to the prompt"
             ></textarea>
 
             <div className="mt-3">
@@ -378,7 +608,7 @@ function App() {
 
         {/* Generated list */}
         <section className="mt-6">
-          <h2 className="text-xl font-semibold">Generated Requirements (click to view testcases)</h2>
+          <h2 className="text-xl font-semibold">Requirements List (click to view testcases)</h2>
           {generationResults.length === 0 ? (
             <div className="mt-2 text-sm text-gray-500">No generated sets yet</div>
           ) : (
@@ -388,15 +618,71 @@ function App() {
                 const genId = r.id;
                 const title = r.requirementTitle || r.title || r.requirementId || r.req_id || r.id;
                 const count = r.count || (r.testcases && r.testcases.length);
+                const showPrompt = regenerateReqPrompt[reqIdForClick] !== undefined;
+                const isRegenerating = regeneratingReqId === reqIdForClick;
                 return (
-                  <li key={r.id || r.req_id || title}>
-                    <button
-                      onClick={() => viewTestcasesFor(genId)}
-                      className="w-full rounded-lg border border-gray-200 bg-white p-3 text-left hover:bg-gray-50"
-                    >
-                      <span className="font-medium">{reqIdForClick}</span> — {title}{" "}
-                      {count ? <span className="text-gray-500">({count} testcases)</span> : ""}
-                    </button>
+                  <li key={r.id || r.req_id || title} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => viewTestcasesFor(genId)}
+                        className="flex-1 rounded-lg border border-gray-200 bg-white p-3 text-left hover:bg-gray-50"
+                      >
+                        <span className="font-medium">{reqIdForClick}</span> — {title}{" "}
+                        {count ? <span className="text-gray-500">({count} testcases)</span> : ""}
+                      </button>
+                      {!showPrompt && (
+                        <button
+                          onClick={() => {
+                            setRegenerateReqPrompt((prev) => ({ ...prev, [reqIdForClick]: "" }));
+                          }}
+                          disabled={isRegenerating}
+                          className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isRegenerating ? "Regenerating..." : "Regenerate"}
+                        </button>
+                      )}
+                    </div>
+                    {showPrompt && (
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Additional Instructions (Optional)
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={regenerateReqPrompt[reqIdForClick] || ""}
+                          onChange={(e) => {
+                            setRegenerateReqPrompt((prev) => ({
+                              ...prev,
+                              [reqIdForClick]: e.target.value,
+                            }));
+                          }}
+                          placeholder="Enter any additional instructions for regenerating testcases for this requirement..."
+                          className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200"
+                        />
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            onClick={() => regenerateRequirement(reqIdForClick, genId, regenerateReqPrompt[reqIdForClick] || "")}
+                            disabled={isRegenerating}
+                            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isRegenerating ? "Regenerating..." : "Confirm Regenerate"}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setRegenerateReqPrompt((prev) => {
+                                const newPrev = { ...prev };
+                                delete newPrev[reqIdForClick];
+                                return newPrev;
+                              });
+                            }}
+                            disabled={isRegenerating}
+                            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </li>
                 );
               })}
@@ -423,6 +709,7 @@ function App() {
                     onRegenerate={regenerateSingle}
                     onSave={saveTestcase}
                     onCreateJira={createJira}
+                    isRegenerating={regeneratingTcId === tc.tc_id}
                   />
                 ))}
               </div>
@@ -435,11 +722,23 @@ function App() {
 }
 
 /* TestcaseCard component for viewing/editing a testcase */
-function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira }) {
+function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira, isRegenerating }) {
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState({ ...tc });
+  const [showRegeneratePrompt, setShowRegeneratePrompt] = useState(false);
+  const [regeneratePrompt, setRegeneratePrompt] = useState("");
 
   useEffect(() => setLocal({ ...tc }), [tc]);
+  
+  const handleRegenerate = () => {
+    if (showRegeneratePrompt) {
+      onRegenerate(genId, local.tc_id, regeneratePrompt);
+      setShowRegeneratePrompt(false);
+      setRegeneratePrompt("");
+    } else {
+      setShowRegeneratePrompt(true);
+    }
+  };
 
   return (
     <div className="rounded-xl border border-gray-200 p-4">
@@ -450,12 +749,15 @@ function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira }) {
         </div>
 
         <div className="shrink-0 space-x-2">
-          <button
-            onClick={() => onRegenerate(genId, local.tc_id)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
-          >
-            Regenerate
-          </button>
+          {!showRegeneratePrompt && (
+            <button
+              onClick={handleRegenerate}
+              disabled={isRegenerating}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isRegenerating ? "Regenerating..." : "Regenerate"}
+            </button>
+          )}
           <button
             onClick={() => setEditing((e) => !e)}
             className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
@@ -482,6 +784,40 @@ function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira }) {
           )}
         </div>
       </div>
+
+      {showRegeneratePrompt && !editing ? (
+        <div className="mt-4 space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <label className="block text-sm font-medium text-gray-700">
+            Additional Instructions (Optional)
+          </label>
+          <textarea
+            rows={4}
+            value={regeneratePrompt}
+            onChange={(e) => setRegeneratePrompt(e.target.value)}
+            placeholder="Enter any additional instructions for regenerating this testcase..."
+            className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleRegenerate}
+              disabled={isRegenerating}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isRegenerating ? "Regenerating..." : "Confirm Regenerate"}
+            </button>
+            <button
+              onClick={() => {
+                setShowRegeneratePrompt(false);
+                setRegeneratePrompt("");
+              }}
+              disabled={isRegenerating}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {editing ? (
         <div className="mt-4 space-y-3">
@@ -617,5 +953,9 @@ function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira }) {
     </div>
   );
 }
+
+App.defaultProps = {
+  googleClientId: "",
+};
 
 export default App;
