@@ -37,6 +37,10 @@ function App({ googleClientId }) {
   const [regeneratingReqId, setRegeneratingReqId] = useState(null);
   const [regenerateReqPrompt, setRegenerateReqPrompt] = useState({});
 
+  const [expanded, setExpanded] = useState({});         // { [genId]: true/false }
+  const [reqViews, setReqViews] = useState({});         // { [genId]: { id, genId, title, testcases, selectedStandards } }
+
+
   const signOut = useCallback(() => {
     setUser(null);
     setCredential(null);
@@ -257,20 +261,34 @@ function App({ googleClientId }) {
   }
 
   async function viewTestcasesFor(genId) {
+    // Toggle closed if already open
+    if (expanded[genId]) {
+      setExpanded((e) => ({ ...e, [genId]: false }));
+      return;
+    }
+  
+    // If we already have it cached, just expand
+    if (reqViews[genId]) {
+      setExpanded((e) => ({ ...e, [genId]: true }));
+      return;
+    }
+  
+    // Otherwise fetch then expand
     try {
-      const res = await authorizedFetch(
-        `${API_BASE}/generated/requirement/${encodeURIComponent(genId)}`
-      );
+      const res = await authorizedFetch(`${API_BASE}/generated/requirement/${encodeURIComponent(genId)}`);
       const data = await res.json();
       if (res.ok) {
-        setCurrentReqView({
-          id: data.requirementId,
-          genId: data.id,
-          title: data.requirementTitle,
-          testcases: data.testcases,
-          selectedStandards: data.selectedStandards || [],
-        });
-        window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+        setReqViews((prev) => ({
+          ...prev,
+          [genId]: {
+            id: data.requirementId,
+            genId: data.id,
+            title: data.requirementTitle,
+            testcases: data.testcases || [],
+            selectedStandards: data.selectedStandards || [],
+          }
+        }));
+        setExpanded((e) => ({ ...e, [genId]: true }));
       } else {
         alert("No testcases: " + (data.error || JSON.stringify(data)));
       }
@@ -279,6 +297,7 @@ function App({ googleClientId }) {
       alert("Error loading testcases");
     }
   }
+  
 
   async function regenerateRequirement(reqId, genId, promptOverride = "") {
     setRegeneratingReqId(reqId);
@@ -336,21 +355,8 @@ function App({ googleClientId }) {
   async function regenerateSingle(genId, tcId, promptOverride = "") {
     setRegeneratingTcId(tcId);
     try {
-      // Find the latest generated set for current requirement
-      const summaryRes = await authorizedFetch(`${API_BASE}/generated`);
-      if (!summaryRes.ok) {
-        alert("Unable to load generated summary");
-        return;
-      }
-      const generatedSummary = await summaryRes.json();
-      const set = generatedSummary.find((s) => s.requirementId === currentReqView.id);
-      if (!set) {
-        alert("Generated set not found for this requirement");
-        return;
-      }
-      const gid = set.id;
       const res = await authorizedFetch(
-        `${API_BASE}/testcases/${encodeURIComponent(gid)}/regenerate/${encodeURIComponent(tcId)}`,
+        `${API_BASE}/testcases/${encodeURIComponent(genId)}/regenerate/${encodeURIComponent(tcId)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -360,8 +366,14 @@ function App({ googleClientId }) {
       const data = await res.json();
       if (res.ok) {
         alert("Regenerated");
-        viewTestcasesFor(currentReqView.id);
-      } else alert("Regenerate failed: " + JSON.stringify(data));
+        // Refresh this genId's testcases in place
+        await viewTestcasesFor(genId); // will toggle closed -> so force re-open:
+        setExpanded((e) => ({ ...e, [genId]: true }));
+        // also refresh summary counts
+        fetchGeneratedSummary();
+      } else {
+        alert("Regenerate failed: " + JSON.stringify(data));
+      }
     } catch (err) {
       console.error(err);
       alert("Error regenerating");
@@ -369,18 +381,10 @@ function App({ googleClientId }) {
       setRegeneratingTcId(null);
     }
   }
+  
 
   async function saveTestcase(genId, tc) {
-    // find genId from summary if not provided
-    let gid = genId;
-    if (!gid) {
-      const summaryRes = await authorizedFetch(`${API_BASE}/generated`);
-      if (!summaryRes.ok) return alert("Generated set lookup failed");
-      const generatedSummary = await summaryRes.json();
-      const set = generatedSummary.find((s) => s.requirementId === tc.req_id);
-      if (!set) return alert("Generated set not found");
-      gid = set.id;
-    }
+    const gid = genId;
     try {
       const res = await authorizedFetch(
         `${API_BASE}/testcases/${encodeURIComponent(gid)}/${encodeURIComponent(tc.tc_id)}`,
@@ -393,13 +397,19 @@ function App({ googleClientId }) {
       const data = await res.json();
       if (res.ok) {
         alert("Saved");
-        viewTestcasesFor(tc.req_id);
-      } else alert("Save failed: " + JSON.stringify(data));
+        // Refresh that panel
+        await viewTestcasesFor(gid);
+        setExpanded((e) => ({ ...e, [gid]: true }));
+        fetchGeneratedSummary();
+      } else {
+        alert("Save failed: " + JSON.stringify(data));
+      }
     } catch (err) {
       console.error(err);
       alert("Error saving");
     }
   }
+  
 
   async function createJira(genId, tcId) {
     const projectKey = prompt("Enter Jira project key (leave blank to use default):");
@@ -683,39 +693,36 @@ function App({ googleClientId }) {
                         </div>
                       </div>
                     )}
+                  {expanded[genId] && reqViews[genId] && (
+                    <div className="rounded-xl border border-gray-200 bg-white p-4">
+                      <h3 className="text-sm font-semibold">
+                        Testcases for: {reqViews[genId].title} <span className="text-gray-500">({reqViews[genId].id})</span>
+                      </h3>
+                      {reqViews[genId].testcases.length === 0 ? (
+                        <div className="mt-2 text-sm text-gray-500">No testcases</div>
+                      ) : (
+                        <div className="mt-3 space-y-3">
+                          {reqViews[genId].testcases.map((tc) => (
+                            <TestcaseCard
+                            key={tc.tc_id}
+                              tc={tc}
+                              genId={reqViews[genId].genId}
+                              onRegenerate={regenerateSingle}
+                              onSave={saveTestcase}
+                              onCreateJira={createJira}
+                              isRegenerating={regeneratingTcId === tc.tc_id}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   </li>
                 );
               })}
             </ul>
           )}
         </section>
-
-        {/* Testcases view */}
-        {currentReqView && (
-          <section className="mt-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <h2 className="text-lg font-semibold">
-              Testcases for: {currentReqView.title} <span className="text-gray-500">({currentReqView.id})</span>
-            </h2>
-
-            {currentReqView.testcases.length === 0 ? (
-              <div className="mt-2 text-sm text-gray-500">No testcases</div>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {currentReqView.testcases.map((tc) => (
-                  <TestcaseCard
-                    key={tc.tc_id}
-                    tc={tc}
-                    genId={currentReqView.genId}
-                    onRegenerate={regenerateSingle}
-                    onSave={saveTestcase}
-                    onCreateJira={createJira}
-                    isRegenerating={regeneratingTcId === tc.tc_id}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        )}
       </div>
     </div>
   );
