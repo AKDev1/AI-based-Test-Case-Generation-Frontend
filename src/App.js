@@ -368,9 +368,9 @@ function App({ googleClientId }) {
         alert("Regenerated");
         // Refresh this genId's testcases in place
         await viewTestcasesFor(genId); // will toggle closed -> so force re-open:
+        fetchGeneratedSummary();
         setExpanded((e) => ({ ...e, [genId]: true }));
         // also refresh summary counts
-        fetchGeneratedSummary();
       } else {
         alert("Regenerate failed: " + JSON.stringify(data));
       }
@@ -399,8 +399,8 @@ function App({ googleClientId }) {
         alert("Saved");
         // Refresh that panel
         await viewTestcasesFor(gid);
-        setExpanded((e) => ({ ...e, [gid]: true }));
         fetchGeneratedSummary();
+        setExpanded((e) => ({ ...e, [gid]: true }));
       } else {
         alert("Save failed: " + JSON.stringify(data));
       }
@@ -423,7 +423,13 @@ function App({ googleClientId }) {
         }
       );
       const data = await res.json();
-      if (res.ok) alert("Jira created: " + JSON.stringify(data.jira));
+      // if (res.ok) alert("Jira created: " + JSON.stringify(data.jira));
+      if (res.ok) {
+        alert("Jira created: " + JSON.stringify(data.jira));
+        // Re-render the impacted components (no UI change)
+        await fetchGeneratedSummary();
+        // await viewTestcasesFor(genId);
+      }
       else alert("Jira create failed: " + JSON.stringify(data));
     } catch (err) {
       console.error(err);
@@ -923,22 +929,22 @@ function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira, isRegener
           {local.preconditions && local.preconditions.length > 0 && (
             <>
               <div className="font-semibold">Preconditions</div>
-              <ol className="list-decimal pl-5 space-y-1">
+              <ul className="list-decimal pl-5 space-y-1">
                 {local.preconditions.map((p, i) => (
                   <li key={i}>{p}</li>
                 ))}
-              </ol>
+              </ul>
             </>
           )}
 
           {local.steps && local.steps.length > 0 && (
             <>
               <div className="font-semibold">Steps</div>
-              <ol className="list-decimal pl-5 space-y-1">
+              <ul className="list-decimal pl-5 space-y-1">
                 {local.steps.map((s, i) => (
                   <li key={i}>{s}</li>
                 ))}
-              </ol>
+              </ul>
             </>
           )}
 
