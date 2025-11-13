@@ -31,7 +31,6 @@ function App({ googleClientId }) {
   const [promptOverride, setPromptOverride] = useState("");
 
   const [generationResults, setGenerationResults] = useState([]);
-  const [currentReqView, setCurrentReqView] = useState(null); // { id, title, genId, testcases: [] }
   const [loading, setLoading] = useState(false);
   const [regeneratingTcId, setRegeneratingTcId] = useState(null);
   const [regeneratingReqId, setRegeneratingReqId] = useState(null);
@@ -53,10 +52,8 @@ function App({ googleClientId }) {
     setSelectedRequirements([]);
     setPromptOverride("");
     setGenerationResults([]);
-    setCurrentReqView(null);
   }, [
     setCredential,
-    setCurrentReqView,
     setGenerationResults,
     setLoginError,
     setReqFile,
@@ -260,20 +257,22 @@ function App({ googleClientId }) {
     }
   }
 
-  async function viewTestcasesFor(genId) {
-    // Toggle closed if already open
-    if (expanded[genId]) {
+  // Load testcases for a generated set. If force===true always re-fetch
+  // otherwise behave as a toggle when invoked from the UI.
+  async function viewTestcasesFor(genId, force = false) {
+    // If not forcing and already expanded -> collapse (UI toggle)
+    if (!force && expanded[genId]) {
       setExpanded((e) => ({ ...e, [genId]: false }));
       return;
     }
-  
-    // If we already have it cached, just expand
-    if (reqViews[genId]) {
+
+    // If not forcing and we already have it cached -> just expand
+    if (!force && reqViews[genId]) {
       setExpanded((e) => ({ ...e, [genId]: true }));
       return;
     }
-  
-    // Otherwise fetch then expand
+
+    // Otherwise fetch fresh data and expand
     try {
       const res = await authorizedFetch(`${API_BASE}/generated/requirement/${encodeURIComponent(genId)}`);
       const data = await res.json();
@@ -332,9 +331,12 @@ function App({ googleClientId }) {
       const data = await res.json();
       if (res.ok) {
         alert(`Regenerated: ${data.count} testcases created`);
+        // Refresh summary and ensure the requirement's testcases are re-fetched
         await fetchGeneratedSummary();
-        if (currentReqView && currentReqView.id === reqId) {
-          viewTestcasesFor(data.genId);
+        try {
+          await viewTestcasesFor(data.genId, true);
+        } catch (e) {
+          // ignore — we still refreshed the summary
         }
       } else {
         alert("Regenerate failed: " + JSON.stringify(data));
@@ -366,10 +368,9 @@ function App({ googleClientId }) {
       const data = await res.json();
       if (res.ok) {
         alert("Regenerated");
-        // Refresh this genId's testcases in place
-        await viewTestcasesFor(genId); // will toggle closed -> so force re-open:
-        fetchGeneratedSummary();
-        setExpanded((e) => ({ ...e, [genId]: true }));
+        // Refresh this genId's testcases in place (force a fresh fetch)
+        await viewTestcasesFor(genId, true);
+        await fetchGeneratedSummary();
         // also refresh summary counts
       } else {
         alert("Regenerate failed: " + JSON.stringify(data));
@@ -398,9 +399,8 @@ function App({ googleClientId }) {
       if (res.ok) {
         alert("Saved");
         // Refresh that panel
-        await viewTestcasesFor(gid);
-        fetchGeneratedSummary();
-        setExpanded((e) => ({ ...e, [gid]: true }));
+        await viewTestcasesFor(gid, true);
+        await fetchGeneratedSummary();
       } else {
         alert("Save failed: " + JSON.stringify(data));
       }
@@ -428,7 +428,11 @@ function App({ googleClientId }) {
         alert("Jira created: " + JSON.stringify(data.jira));
         // Re-render the impacted components (no UI change)
         await fetchGeneratedSummary();
-        // await viewTestcasesFor(genId);
+        try {
+          await viewTestcasesFor(genId, true);
+        } catch (e) {
+          // ignore — summary refreshed at least
+        }
       }
       else alert("Jira create failed: " + JSON.stringify(data));
     } catch (err) {
