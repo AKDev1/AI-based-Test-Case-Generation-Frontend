@@ -2,6 +2,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
+import { Bounce, ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5000";
 
 function App({ googleClientId }) {
@@ -14,8 +16,8 @@ function App({ googleClientId }) {
       return null;
     }
   });
-  const [credential, setCredential] = useState(() =>
-    localStorage.getItem("googleCredential") || null
+  const [credential, setCredential] = useState(
+    () => localStorage.getItem("googleCredential") || null
   );
   const [loginError, setLoginError] = useState("");
 
@@ -38,10 +40,13 @@ function App({ googleClientId }) {
   const [uploadingStandard, setUploadingStandard] = useState(false);
   const [uploadingRequirement, setUploadingRequirement] = useState(false);
   const [creatingJiraTcId, setCreatingJiraTcId] = useState(null);
+  const [jiraModalOpen, setJiraModalOpen] = useState(false);
+  const [jiraModalGenId, setJiraModalGenId] = useState(null);
+  const [jiraModalTcId, setJiraModalTcId] = useState(null);
+  const [jiraModalProjectKey, setJiraModalProjectKey] = useState("");
 
-  const [expanded, setExpanded] = useState({});         // { [genId]: true/false }
-  const [reqViews, setReqViews] = useState({});         // { [genId]: { id, genId, title, testcases, selectedStandards } }
-
+  const [expanded, setExpanded] = useState({}); // { [genId]: true/false }
+  const [reqViews, setReqViews] = useState({}); // { [genId]: { id, genId, title, testcases, selectedStandards } }
 
   const signOut = useCallback(() => {
     setUser(null);
@@ -176,7 +181,20 @@ function App({ googleClientId }) {
 
   async function uploadStandard(e) {
     e.preventDefault();
-    if (!stdFile) return alert("Choose a standard file");
+    if (!stdFile) {
+      toast.error("Choose a standard file", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Bounce,
+      });
+      return;
+    }
     setUploadingStandard(true);
     const fd = new FormData();
     fd.append("standardFile", stdFile);
@@ -187,13 +205,45 @@ function App({ googleClientId }) {
       });
       const data = await res.json();
       if (res.ok) {
-        alert("Standard uploaded");
+        toast.success("Standard uploaded", {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
         setStdFile(null);
         fetchStandards();
-      } else alert("Upload failed: " + JSON.stringify(data));
+      } else {
+        toast.error("Upload failed: " + JSON.stringify(data), {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
+      }
     } catch (err) {
       console.error(err);
-      alert("Upload error");
+      toast.error("Upload error", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Bounce,
+      });
     } finally {
       setUploadingStandard(false);
     }
@@ -201,7 +251,20 @@ function App({ googleClientId }) {
 
   async function uploadRequirement(e) {
     e.preventDefault();
-    if (!reqFile) return alert("Choose a requirement file");
+    if (!reqFile) {
+      toast.error("Choose a requirement file", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Bounce,
+      });
+      return;
+    }
     setUploadingRequirement(true);
     const fd = new FormData();
     fd.append("requirementFile", reqFile);
@@ -212,13 +275,45 @@ function App({ googleClientId }) {
       });
       const data = await res.json();
       if (res.ok) {
-        alert("Requirement uploaded: " + data.title);
+        toast.success("Requirement uploaded: " + data.title, {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
         setReqFile(null);
         fetchRequirements();
-      } else alert("Upload failed: " + JSON.stringify(data));
+      } else {
+        toast.error("Upload failed: " + JSON.stringify(data), {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
+      }
     } catch (err) {
       console.error(err);
-      alert("Upload error");
+      toast.error("Upload error", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Bounce,
+      });
     } finally {
       setUploadingRequirement(false);
     }
@@ -237,9 +332,29 @@ function App({ googleClientId }) {
 
   async function generateTestcases() {
     if (selectedRequirements.length === 0)
-      return alert("Select at least one requirement");
+      return toast.error("Select at least one requirement", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Bounce,
+      });
     if (selectedStandards.length === 0)
-      return alert("Select at least one standard");
+      return toast.error("Select at least one standard", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Bounce,
+      });
     setLoading(true);
     try {
       const res = await authorizedFetch(`${API_BASE}/testcases`, {
@@ -253,14 +368,47 @@ function App({ googleClientId }) {
       });
       const data = await res.json();
       if (res.ok) {
-        alert("Testcases generated");
+        toast.success("Testcases generated", {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
         await fetchGeneratedSummary();
       } else {
-        alert("Generation failed: " + (data.error || JSON.stringify(data)));
+        toast.error(
+          "Generation failed: " + (data.error || JSON.stringify(data)),
+          {
+            position: "top-right",
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            progress: undefined,
+            theme: "dark",
+            transition: Bounce,
+          }
+        );
       }
     } catch (err) {
       console.error(err);
-      alert("Generation error");
+      toast.error("Generation error", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Bounce,
+      });
     } finally {
       setLoading(false);
     }
@@ -283,7 +431,9 @@ function App({ googleClientId }) {
 
     // Otherwise fetch fresh data and expand
     try {
-      const res = await authorizedFetch(`${API_BASE}/generated/requirement/${encodeURIComponent(genId)}`);
+      const res = await authorizedFetch(
+        `${API_BASE}/generated/requirement/${encodeURIComponent(genId)}`
+      );
       const data = await res.json();
       if (res.ok) {
         setReqViews((prev) => ({
@@ -294,18 +444,37 @@ function App({ googleClientId }) {
             title: data.requirementTitle,
             testcases: data.testcases || [],
             selectedStandards: data.selectedStandards || [],
-          }
+          },
         }));
         setExpanded((e) => ({ ...e, [genId]: true }));
       } else {
-        alert("No testcases: " + (data.error || JSON.stringify(data)));
+        toast.error("No testcases: " + (data.error || JSON.stringify(data)), {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
       }
     } catch (err) {
       console.error(err);
-      alert("Error loading testcases");
+      toast.error("Error loading testcases", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Bounce,
+      });
     }
   }
-  
 
   async function regenerateRequirement(reqId, genId, promptOverride = "") {
     setRegeneratingReqId(reqId);
@@ -315,14 +484,34 @@ function App({ googleClientId }) {
         `${API_BASE}/generated/requirement/${encodeURIComponent(genId)}`
       );
       if (!genRes.ok) {
-        alert("Unable to load generated set");
+        toast.error("Unable to load generated set", {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
         return;
       }
       const genData = await genRes.json();
       const selectedStandards = genData.selectedStandards || [];
-      
+
       if (selectedStandards.length === 0) {
-        alert("No standards found in the original generation");
+        toast.error("No standards found in the original generation", {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
         return;
       }
 
@@ -339,7 +528,17 @@ function App({ googleClientId }) {
       );
       const data = await res.json();
       if (res.ok) {
-        alert(`Regenerated: ${data.count} testcases created`);
+        toast.success(`Regenerated: ${data.count} testcases created`, {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
         // Refresh summary and ensure the requirement's testcases are re-fetched
         await fetchGeneratedSummary();
         try {
@@ -348,11 +547,31 @@ function App({ googleClientId }) {
           // ignore — we still refreshed the summary
         }
       } else {
-        alert("Regenerate failed: " + JSON.stringify(data));
+        toast.error("Regenerate failed: " + JSON.stringify(data), {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
       }
     } catch (err) {
       console.error(err);
-      alert("Error regenerating");
+      toast.error("Error regenerating", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Bounce,
+      });
     } finally {
       setRegeneratingReqId(null);
       setRegenerateReqPrompt((prev) => {
@@ -367,7 +586,9 @@ function App({ googleClientId }) {
     setRegeneratingTcId(tcId);
     try {
       const res = await authorizedFetch(
-        `${API_BASE}/testcases/${encodeURIComponent(genId)}/regenerate/${encodeURIComponent(tcId)}`,
+        `${API_BASE}/testcases/${encodeURIComponent(
+          genId
+        )}/regenerate/${encodeURIComponent(tcId)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -376,28 +597,59 @@ function App({ googleClientId }) {
       );
       const data = await res.json();
       if (res.ok) {
-        alert("Regenerated");
+        toast.success("Regenerated", {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
         // Refresh this genId's testcases in place (force a fresh fetch)
         await viewTestcasesFor(genId, true);
         await fetchGeneratedSummary();
         // also refresh summary counts
       } else {
-        alert("Regenerate failed: " + JSON.stringify(data));
+        toast.error("Regenerate failed: " + JSON.stringify(data), {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
       }
     } catch (err) {
       console.error(err);
-      alert("Error regenerating");
+      toast.error("Error regenerating", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Bounce,
+      });
     } finally {
       setRegeneratingTcId(null);
     }
   }
-  
 
   async function saveTestcase(genId, tc) {
     const gid = genId;
     try {
       const res = await authorizedFetch(
-        `${API_BASE}/testcases/${encodeURIComponent(gid)}/${encodeURIComponent(tc.tc_id)}`,
+        `${API_BASE}/testcases/${encodeURIComponent(gid)}/${encodeURIComponent(
+          tc.tc_id
+        )}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -406,27 +658,67 @@ function App({ googleClientId }) {
       );
       const data = await res.json();
       if (res.ok) {
-        alert("Saved");
+        toast.success("Saved", {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
         // Refresh that panel
         await viewTestcasesFor(gid, true);
         await fetchGeneratedSummary();
       } else {
-        alert("Save failed: " + JSON.stringify(data));
+        toast.error("Save failed: " + JSON.stringify(data), {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
       }
     } catch (err) {
       console.error(err);
-      alert("Error saving");
+      toast.error("Error saving", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Bounce,
+      });
     }
   }
-  
 
   async function createJira(genId, tcId) {
-    const projectKey = prompt("Enter Jira project key (leave blank to use default):");
-    if (projectKey === null) return; // user cancelled
+    // Open modal to capture project key instead of using prompt()
+    setJiraModalGenId(genId);
+    setJiraModalTcId(tcId);
+    setJiraModalProjectKey("");
+    setJiraModalOpen(true);
+  }
+
+  async function submitJiraModal() {
+    const genId = jiraModalGenId;
+    const tcId = jiraModalTcId;
+    const projectKey = jiraModalProjectKey;
     setCreatingJiraTcId(tcId);
     try {
       const res = await authorizedFetch(
-        `${API_BASE}/testcases/${encodeURIComponent(genId)}/${encodeURIComponent(tcId)}/jira`,
+        `${API_BASE}/testcases/${encodeURIComponent(
+          genId
+        )}/${encodeURIComponent(tcId)}/jira`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -435,20 +727,48 @@ function App({ googleClientId }) {
       );
       const data = await res.json();
       if (res.ok) {
-        alert("Jira created: " + JSON.stringify(data.jira));
-        // Re-render the impacted components
+        toast.success("Jira created: " + JSON.stringify(data.jira), {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
         await fetchGeneratedSummary();
         try {
           await viewTestcasesFor(genId, true);
-        } catch (e) {
-          // ignore — summary refreshed at least
-        }
+        } catch (e) {}
+        setJiraModalOpen(false);
       } else {
-        alert("Jira create failed: " + JSON.stringify(data));
+        toast.error("Jira create failed: " + JSON.stringify(data), {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "dark",
+          transition: Bounce,
+        });
       }
     } catch (err) {
       console.error(err);
-      alert("Jira create error");
+      toast.error("Jira create error", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Bounce,
+      });
     } finally {
       setCreatingJiraTcId(null);
     }
@@ -458,12 +778,16 @@ function App({ googleClientId }) {
     return (
       <div className="min-h-screen bg-gray-50 text-gray-900">
         <div className="mx-auto max-w-lg px-5 py-24 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">AI Testcase Generator</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            AI Testcase Generator
+          </h1>
           <p className="mt-4 text-sm text-gray-600">
-            Google login requires the environment variable <code>REACT_APP_GOOGLE_CLIENT_ID</code> to be set.
+            Google login requires the environment variable{" "}
+            <code>REACT_APP_GOOGLE_CLIENT_ID</code> to be set.
           </p>
           <p className="mt-2 text-sm text-gray-600">
-            Update your <code>.env</code> file or runtime configuration and reload the app.
+            Update your <code>.env</code> file or runtime configuration and
+            reload the app.
           </p>
         </div>
       </div>
@@ -474,12 +798,22 @@ function App({ googleClientId }) {
     return (
       <div className="min-h-screen bg-gray-50 text-gray-900">
         <div className="mx-auto max-w-md px-5 py-24 text-center">
-          <h1 className="text-3xl font-semibold tracking-tight">AI Testcase Generator</h1>
-          <p className="mt-4 text-sm text-gray-600">Sign in with your Google account to continue.</p>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            AI Testcase Generator
+          </h1>
+          <p className="mt-4 text-sm text-gray-600">
+            Sign in with your Google account to continue.
+          </p>
           <div className="mt-8 flex justify-center">
-            <GoogleLogin onSuccess={handleLoginSuccess} onError={handleLoginError} useOneTap />
+            <GoogleLogin
+              onSuccess={handleLoginSuccess}
+              onError={handleLoginError}
+              useOneTap
+            />
           </div>
-          {loginError && <div className="mt-4 text-sm text-red-500">{loginError}</div>}
+          {loginError && (
+            <div className="mt-4 text-sm text-red-500">{loginError}</div>
+          )}
         </div>
       </div>
     );
@@ -487,8 +821,21 @@ function App({ googleClientId }) {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick={false}
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+        transition={Bounce}
+      />
       <div className="mx-auto max-w-5xl px-5 py-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex md:gap-4 md:flex-row md:items-center justify-between">
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
             AI Testcase Generator
           </h1>
@@ -501,8 +848,10 @@ function App({ googleClientId }) {
                 referrerPolicy="no-referrer"
               />
             )}
-            <div className="text-right">
-              <div className="text-sm font-medium">{user.name || user.email}</div>
+            <div className="text-right hidden md:inline">
+              <div className="text-sm font-medium">
+                {user.name || user.email}
+              </div>
               <div className="text-xs text-gray-500">{user.email}</div>
             </div>
             <button
@@ -517,16 +866,61 @@ function App({ googleClientId }) {
         {/* Upload Standard */}
         <section className="mt-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <h3 className="text-lg font-medium">Upload Standard</h3>
-          <form onSubmit={uploadStandard} className="mt-3 flex items-center gap-3">
+          <form
+            onSubmit={uploadStandard}
+            className="mt-3 flex flex-col md:flex-row items-center gap-3"
+          >
             <input
               type="file"
               onChange={(e) => setStdFile(e.target.files[0])}
               className="block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-medium hover:file:bg-gray-200"
             />
+
+            {/* Jira modal */}
+            {jiraModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center">
+                <div
+                  className="absolute inset-0 bg-black/40"
+                  onClick={() => setJiraModalOpen(false)}
+                />
+                <div className="relative bg-white rounded-lg p-6 z-60 w-full max-w-md shadow-lg">
+                  <h3 className="text-lg font-semibold mb-2">
+                    Create Jira Issue
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Enter an optional project key or leave blank to use the
+                    default project.
+                  </p>
+                  <input
+                    value={jiraModalProjectKey}
+                    onChange={(e) => setJiraModalProjectKey(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 p-2 mb-4"
+                    placeholder="Project key (e.g. PROJ)"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setJiraModalOpen(false)}
+                      className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={submitJiraModal}
+                      disabled={creatingJiraTcId === jiraModalTcId}
+                      className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {creatingJiraTcId === jiraModalTcId
+                        ? "Creating..."
+                        : "Create Jira"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             <button
               type="submit"
               disabled={uploadingStandard}
-              className="inline-flex items-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black/90 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="inline-flex w-full md:w-auto items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black/90 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {uploadingStandard ? "Uploading Standard..." : "Upload Standard"}
             </button>
@@ -535,8 +929,11 @@ function App({ googleClientId }) {
 
         {/* Upload Requirement */}
         <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h3 className="text-lg font-medium">Upload Requirement (file)</h3>
-          <form onSubmit={uploadRequirement} className="mt-3 flex items-center gap-3">
+          <h3 className="text-lg font-medium">Upload Requirement</h3>
+          <form
+            onSubmit={uploadRequirement}
+            className="mt-3 flex flex-col md:flex-row items-center gap-3"
+          >
             <input
               type="file"
               onChange={(e) => setReqFile(e.target.files[0])}
@@ -545,16 +942,20 @@ function App({ googleClientId }) {
             <button
               type="submit"
               disabled={uploadingRequirement}
-              className="inline-flex items-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black/90 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="inline-flex w-full md:w-auto items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black/90 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {uploadingRequirement ? "Uploading Requirement..." : "Upload Requirement"}
+              {uploadingRequirement
+                ? "Uploading Requirement..."
+                : "Upload Requirement"}
             </button>
           </form>
         </section>
 
         {/* Selection */}
         <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h3 className="text-lg font-medium">Select Requirements & Standards</h3>
+          <h3 className="text-lg font-medium">
+            Select Requirements & Standards
+          </h3>
 
           <div className="mt-3 grid gap-4 md:grid-cols-2">
             {/* Requirements */}
@@ -563,11 +964,16 @@ function App({ googleClientId }) {
                 Requirements
               </h4>
               {Object.keys(requirements).length === 0 ? (
-                <div className="text-sm text-gray-500">No requirements uploaded</div>
+                <div className="text-sm text-gray-500">
+                  No requirements uploaded
+                </div>
               ) : (
                 <ul className="space-y-2">
                   {Object.entries(requirements).map(([id, r]) => (
-                    <li key={id} className="rounded-lg border border-gray-200 p-3">
+                    <li
+                      key={id}
+                      className="rounded-lg border border-gray-200 p-3"
+                    >
                       <label className="flex items-start gap-3">
                         <input
                           type="checkbox"
@@ -577,7 +983,9 @@ function App({ googleClientId }) {
                         />
                         <div>
                           <div className="font-medium">{r.title}</div>
-                          <div className="text-xs text-gray-500 break-all">{r.fileUri}</div>
+                          <div className="text-xs text-gray-500 break-all">
+                            {r.fileUri}
+                          </div>
                         </div>
                       </label>
                     </li>
@@ -592,11 +1000,16 @@ function App({ googleClientId }) {
                 Standards
               </h4>
               {Object.keys(standards).length === 0 ? (
-                <div className="text-sm text-gray-500">No standards uploaded</div>
+                <div className="text-sm text-gray-500">
+                  No standards uploaded
+                </div>
               ) : (
                 <ul className="space-y-2">
                   {Object.entries(standards).map(([name, uri]) => (
-                    <li key={name} className="rounded-lg border border-gray-200 p-3">
+                    <li
+                      key={name}
+                      className="rounded-lg border border-gray-200 p-3"
+                    >
                       <label className="flex items-start gap-3">
                         <input
                           type="checkbox"
@@ -606,7 +1019,9 @@ function App({ googleClientId }) {
                         />
                         <div>
                           <div className="font-medium">{name}</div>
-                          <div className="text-xs text-gray-500 break-all">{uri}</div>
+                          <div className="text-xs text-gray-500 break-all">
+                            {uri}
+                          </div>
                         </div>
                       </label>
                     </li>
@@ -643,17 +1058,27 @@ function App({ googleClientId }) {
 
         {/* Generated list */}
         <section className="mt-6">
-          <h2 className="text-xl font-semibold">Requirements List (click to view testcases)</h2>
+          <h2 className="text-xl font-semibold">
+            Requirements List (click to view testcases)
+          </h2>
           {generationResults.length === 0 ? (
-            <div className="mt-2 text-sm text-gray-500">No generated sets yet</div>
+            <div className="mt-2 text-sm text-gray-500">
+              No generated sets yet
+            </div>
           ) : (
             <ul className="mt-2 space-y-2">
               {generationResults.map((r) => {
                 const reqIdForClick = r.requirementId;
                 const genId = r.id;
-                const title = r.requirementTitle || r.title || r.requirementId || r.req_id || r.id;
+                const title =
+                  r.requirementTitle ||
+                  r.title ||
+                  r.requirementId ||
+                  r.req_id ||
+                  r.id;
                 const count = r.count || (r.testcases && r.testcases.length);
-                const showPrompt = regenerateReqPrompt[reqIdForClick] !== undefined;
+                const showPrompt =
+                  regenerateReqPrompt[reqIdForClick] !== undefined;
                 const isRegenerating = regeneratingReqId === reqIdForClick;
                 return (
                   <li key={r.id || r.req_id || title} className="space-y-2">
@@ -662,13 +1087,23 @@ function App({ googleClientId }) {
                         onClick={() => viewTestcasesFor(genId)}
                         className="flex-1 rounded-lg border border-gray-200 bg-white p-3 text-left hover:bg-gray-50"
                       >
-                        <span className="font-medium">{reqIdForClick}</span> — {title}{" "}
-                        {count ? <span className="text-gray-500">({count} testcases)</span> : ""}
+                        <span className="font-medium">{reqIdForClick}</span> —{" "}
+                        {title}{" "}
+                        {count ? (
+                          <span className="text-gray-500">
+                            ({count} testcases)
+                          </span>
+                        ) : (
+                          ""
+                        )}
                       </button>
                       {!showPrompt && (
                         <button
                           onClick={() => {
-                            setRegenerateReqPrompt((prev) => ({ ...prev, [reqIdForClick]: "" }));
+                            setRegenerateReqPrompt((prev) => ({
+                              ...prev,
+                              [reqIdForClick]: "",
+                            }));
                           }}
                           disabled={isRegenerating}
                           className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -696,11 +1131,19 @@ function App({ googleClientId }) {
                         />
                         <div className="flex gap-2 mt-3">
                           <button
-                            onClick={() => regenerateRequirement(reqIdForClick, genId, regenerateReqPrompt[reqIdForClick] || "")}
+                            onClick={() =>
+                              regenerateRequirement(
+                                reqIdForClick,
+                                genId,
+                                regenerateReqPrompt[reqIdForClick] || ""
+                              )
+                            }
                             disabled={isRegenerating}
                             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {isRegenerating ? "Regenerating..." : "Confirm Regenerate"}
+                            {isRegenerating
+                              ? "Regenerating..."
+                              : "Confirm Regenerate"}
                           </button>
                           <button
                             onClick={() => {
@@ -718,31 +1161,36 @@ function App({ googleClientId }) {
                         </div>
                       </div>
                     )}
-                  {expanded[genId] && reqViews[genId] && (
-                    <div className="rounded-xl border border-gray-200 bg-white p-4">
-                      <h3 className="text-sm font-semibold">
-                        Testcases for: {reqViews[genId].title} <span className="text-gray-500">({reqViews[genId].id})</span>
-                      </h3>
-                      {reqViews[genId].testcases.length === 0 ? (
-                        <div className="mt-2 text-sm text-gray-500">No testcases</div>
-                      ) : (
-                        <div className="mt-3 space-y-3">
-                          {reqViews[genId].testcases.map((tc) => (
-                            <TestcaseCard
-                            key={tc.tc_id}
-                              tc={tc}
-                              genId={reqViews[genId].genId}
-                              onRegenerate={regenerateSingle}
-                              onSave={saveTestcase}
-                              onCreateJira={createJira}
-                              isRegenerating={regeneratingTcId === tc.tc_id}
-                              isCreatingJira={creatingJiraTcId === tc.tc_id}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    {expanded[genId] && reqViews[genId] && (
+                      <div className="rounded-xl border border-gray-200 bg-white p-4">
+                        <h3 className="text-sm font-semibold">
+                          Testcases for: {reqViews[genId].title}{" "}
+                          <span className="text-gray-500">
+                            ({reqViews[genId].id})
+                          </span>
+                        </h3>
+                        {reqViews[genId].testcases.length === 0 ? (
+                          <div className="mt-2 text-sm text-gray-500">
+                            No testcases
+                          </div>
+                        ) : (
+                          <div className="mt-3 space-y-3">
+                            {reqViews[genId].testcases.map((tc) => (
+                              <TestcaseCard
+                                key={tc.tc_id}
+                                tc={tc}
+                                genId={reqViews[genId].genId}
+                                onRegenerate={regenerateSingle}
+                                onSave={saveTestcase}
+                                onCreateJira={createJira}
+                                isRegenerating={regeneratingTcId === tc.tc_id}
+                                isCreatingJira={creatingJiraTcId === tc.tc_id}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </li>
                 );
               })}
@@ -755,14 +1203,22 @@ function App({ googleClientId }) {
 }
 
 /* TestcaseCard component for viewing/editing a testcase */
-function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira, isRegenerating, isCreatingJira }) {
+function TestcaseCard({
+  tc,
+  genId,
+  onRegenerate,
+  onSave,
+  onCreateJira,
+  isRegenerating,
+  isCreatingJira,
+}) {
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState({ ...tc });
   const [showRegeneratePrompt, setShowRegeneratePrompt] = useState(false);
   const [regeneratePrompt, setRegeneratePrompt] = useState("");
 
   useEffect(() => setLocal({ ...tc }), [tc]);
-  
+
   const handleRegenerate = () => {
     if (showRegeneratePrompt) {
       onRegenerate(genId, local.tc_id, regeneratePrompt);
@@ -862,23 +1318,33 @@ function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira, isRegener
             placeholder="Title"
           />
 
-          <label className="block text-xs font-medium text-gray-600">Preconditions (one per line)</label>
+          <label className="block text-xs font-medium text-gray-600">
+            Preconditions (one per line)
+          </label>
           <textarea
             rows={2}
             value={(local.preconditions || []).join("\n")}
-            onChange={(e) => setLocal({ ...local, preconditions: e.target.value.split("\n") })}
+            onChange={(e) =>
+              setLocal({ ...local, preconditions: e.target.value.split("\n") })
+            }
             className="w-full rounded-lg border border-gray-300 bg-white p-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
           />
 
-          <label className="block text-xs font-medium text-gray-600">Steps (one per line)</label>
+          <label className="block text-xs font-medium text-gray-600">
+            Steps (one per line)
+          </label>
           <textarea
             rows={3}
             value={(local.steps || []).join("\n")}
-            onChange={(e) => setLocal({ ...local, steps: e.target.value.split("\n") })}
+            onChange={(e) =>
+              setLocal({ ...local, steps: e.target.value.split("\n") })
+            }
             className="w-full rounded-lg border border-gray-300 bg-white p-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
           />
 
-          <label className="block text-xs font-medium text-gray-600">Expected</label>
+          <label className="block text-xs font-medium text-gray-600">
+            Expected
+          </label>
           <input
             value={local.expected || ""}
             onChange={(e) => setLocal({ ...local, expected: e.target.value })}
@@ -888,10 +1354,14 @@ function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira, isRegener
 
           <div className="grid gap-3 md:grid-cols-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600">Automatable</label>
+              <label className="block text-xs font-medium text-gray-600">
+                Automatable
+              </label>
               <select
                 value={local.automatable ? "true" : "false"}
-                onChange={(e) => setLocal({ ...local, automatable: e.target.value === "true" })}
+                onChange={(e) =>
+                  setLocal({ ...local, automatable: e.target.value === "true" })
+                }
                 className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
               >
                 <option value="true">true</option>
@@ -900,33 +1370,46 @@ function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira, isRegener
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600">Suggested tool</label>
+              <label className="block text-xs font-medium text-gray-600">
+                Suggested tool
+              </label>
               <input
                 value={local.suggested_tool || ""}
-                onChange={(e) => setLocal({ ...local, suggested_tool: e.target.value })}
+                onChange={(e) =>
+                  setLocal({ ...local, suggested_tool: e.target.value })
+                }
                 className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
                 placeholder="e.g., Playwright"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600">Confidence (0-1)</label>
+              <label className="block text-xs font-medium text-gray-600">
+                Confidence (0-1)
+              </label>
               <input
                 value={local.confidence}
-                onChange={(e) => setLocal({ ...local, confidence: parseFloat(e.target.value) })}
+                onChange={(e) =>
+                  setLocal({ ...local, confidence: parseFloat(e.target.value) })
+                }
                 className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
                 placeholder="0.8"
               />
             </div>
           </div>
 
-          <label className="block text-xs font-medium text-gray-600">Compliance (comma separated)</label>
+          <label className="block text-xs font-medium text-gray-600">
+            Compliance (comma separated)
+          </label>
           <input
             value={(local.compliance || []).join(", ")}
             onChange={(e) =>
               setLocal({
                 ...local,
-                compliance: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+                compliance: e.target.value
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean),
               })
             }
             className="w-full rounded-lg border border-gray-300 bg-white p-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
@@ -977,7 +1460,8 @@ function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira, isRegener
           )}
 
           <div className="text-xs text-gray-600">
-            Automatable: {local.automatable ? "Yes" : "No"} — Suggested: {local.suggested_tool} — Confidence: {local.confidence}
+            Automatable: {local.automatable ? "Yes" : "No"} — Suggested:{" "}
+            {local.suggested_tool} — Confidence: {local.confidence}
           </div>
           <div className="text-xs text-gray-600">
             Compliance: {(local.compliance || []).join(", ")}
