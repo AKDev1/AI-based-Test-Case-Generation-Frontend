@@ -35,6 +35,9 @@ function App({ googleClientId }) {
   const [regeneratingTcId, setRegeneratingTcId] = useState(null);
   const [regeneratingReqId, setRegeneratingReqId] = useState(null);
   const [regenerateReqPrompt, setRegenerateReqPrompt] = useState({});
+  const [uploadingStandard, setUploadingStandard] = useState(false);
+  const [uploadingRequirement, setUploadingRequirement] = useState(false);
+  const [creatingJiraTcId, setCreatingJiraTcId] = useState(null);
 
   const [expanded, setExpanded] = useState({});         // { [genId]: true/false }
   const [reqViews, setReqViews] = useState({});         // { [genId]: { id, genId, title, testcases, selectedStandards } }
@@ -174,6 +177,7 @@ function App({ googleClientId }) {
   async function uploadStandard(e) {
     e.preventDefault();
     if (!stdFile) return alert("Choose a standard file");
+    setUploadingStandard(true);
     const fd = new FormData();
     fd.append("standardFile", stdFile);
     try {
@@ -190,12 +194,15 @@ function App({ googleClientId }) {
     } catch (err) {
       console.error(err);
       alert("Upload error");
+    } finally {
+      setUploadingStandard(false);
     }
   }
 
   async function uploadRequirement(e) {
     e.preventDefault();
     if (!reqFile) return alert("Choose a requirement file");
+    setUploadingRequirement(true);
     const fd = new FormData();
     fd.append("requirementFile", reqFile);
     try {
@@ -212,6 +219,8 @@ function App({ googleClientId }) {
     } catch (err) {
       console.error(err);
       alert("Upload error");
+    } finally {
+      setUploadingRequirement(false);
     }
   }
 
@@ -413,6 +422,8 @@ function App({ googleClientId }) {
 
   async function createJira(genId, tcId) {
     const projectKey = prompt("Enter Jira project key (leave blank to use default):");
+    if (projectKey === null) return; // user cancelled
+    setCreatingJiraTcId(tcId);
     try {
       const res = await authorizedFetch(
         `${API_BASE}/testcases/${encodeURIComponent(genId)}/${encodeURIComponent(tcId)}/jira`,
@@ -423,21 +434,23 @@ function App({ googleClientId }) {
         }
       );
       const data = await res.json();
-      // if (res.ok) alert("Jira created: " + JSON.stringify(data.jira));
       if (res.ok) {
         alert("Jira created: " + JSON.stringify(data.jira));
-        // Re-render the impacted components (no UI change)
+        // Re-render the impacted components
         await fetchGeneratedSummary();
         try {
           await viewTestcasesFor(genId, true);
         } catch (e) {
           // ignore — summary refreshed at least
         }
+      } else {
+        alert("Jira create failed: " + JSON.stringify(data));
       }
-      else alert("Jira create failed: " + JSON.stringify(data));
     } catch (err) {
       console.error(err);
       alert("Jira create error");
+    } finally {
+      setCreatingJiraTcId(null);
     }
   }
 
@@ -512,9 +525,10 @@ function App({ googleClientId }) {
             />
             <button
               type="submit"
-              className="inline-flex items-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black/90"
+              disabled={uploadingStandard}
+              className="inline-flex items-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black/90 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Upload Standard
+              {uploadingStandard ? "Uploading Standard..." : "Upload Standard"}
             </button>
           </form>
         </section>
@@ -530,9 +544,10 @@ function App({ googleClientId }) {
             />
             <button
               type="submit"
-              className="inline-flex items-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black/90"
+              disabled={uploadingRequirement}
+              className="inline-flex items-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black/90 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Upload Requirement
+              {uploadingRequirement ? "Uploading Requirement..." : "Upload Requirement"}
             </button>
           </form>
         </section>
@@ -721,6 +736,7 @@ function App({ googleClientId }) {
                               onSave={saveTestcase}
                               onCreateJira={createJira}
                               isRegenerating={regeneratingTcId === tc.tc_id}
+                              isCreatingJira={creatingJiraTcId === tc.tc_id}
                             />
                           ))}
                         </div>
@@ -739,7 +755,7 @@ function App({ googleClientId }) {
 }
 
 /* TestcaseCard component for viewing/editing a testcase */
-function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira, isRegenerating }) {
+function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira, isRegenerating, isCreatingJira }) {
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState({ ...tc });
   const [showRegeneratePrompt, setShowRegeneratePrompt] = useState(false);
@@ -794,9 +810,10 @@ function TestcaseCard({ tc, genId, onRegenerate, onSave, onCreateJira, isRegener
             <button
               type="button"
               onClick={() => onCreateJira(genId, local.tc_id)}
-              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+              disabled={isCreatingJira}
+              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Jira
+              {isCreatingJira ? "Creating..." : "Create Jira"}
             </button>
           )}
         </div>
