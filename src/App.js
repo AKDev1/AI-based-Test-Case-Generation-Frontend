@@ -796,24 +796,41 @@ function App({ googleClientId }) {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 text-gray-900">
-        <div className="mx-auto max-w-md px-5 py-24 text-center">
-          <h1 className="text-3xl font-semibold tracking-tight">
-            AI Testcase Generator
-          </h1>
-          <p className="mt-4 text-sm text-gray-600">
-            Sign in with your Google account to continue.
-          </p>
-          <div className="mt-8 flex justify-center">
-            <GoogleLogin
-              onSuccess={handleLoginSuccess}
-              onError={handleLoginError}
-              useOneTap
-            />
+      <div className="min-h-screen bg-gradient-to-b from-white via-gray-50 to-gray-100 text-gray-900 relative">
+        <div className="mx-auto px-6 py-28 text-center">
+          <h1 className="gradient-title text-6xl md:text-8xl lg:text-9xl font-extrabold tracking-tight">LambdaGuard</h1>
+          <p className="mt-6 text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto">An autonomous, AI-driven QA agent that specifically hunts for the "boring" edge cases humans overlook.</p>
+
+          <div className="mt-10 space-y-6 text-sm md:text-base text-gray-700 max-w-2xl mx-auto landing-feature-box rounded-xl p-6 text-center">
+            <div>
+              <div className="font-medium text-[#2a66f6] text-lg">Fast generation</div>
+              <div className="text-gray-600 mt-1">Generate multiple high-quality testcases per requirement with a single click.</div>
+            </div>
+
+            <div>
+              <div className="font-medium text-[#2a66f6] text-lg">Standards-aware</div>
+              <div className="text-gray-600 mt-1">Include your uploaded standards so testcases are compliant and traceable.</div>
+            </div>
+
+            <div>
+              <div className="font-medium text-[#2a66f6] text-lg">Editable & exportable</div>
+              <div className="text-gray-600 mt-1">Edit generated testcases, save changes, and create Jira tasks directly from the UI.</div>
+            </div>
           </div>
-          {loginError && (
-            <div className="mt-4 text-sm text-red-500">{loginError}</div>
-          )}
+        </div>
+
+        {/* Place Google sign-in at roughly 75% of viewport height */}
+        <div style={{ position: "absolute", left: 0, right: 0, top: "75vh" }}>
+          <div className="mx-auto max-w-md px-5 flex justify-center">
+            <div className=" text-center border border-black rounded">
+              <GoogleLogin onSuccess={handleLoginSuccess} onError={handleLoginError} useOneTap />
+              {loginError && <div className="mt-4 text-sm text-red-500">{loginError}</div>}
+            </div>
+          </div>
+        </div>
+
+        <div className="absolute bottom-6 left-0 right-0 text-center text-xs text-gray-500">
+          <span>Built for QA teams — upload standards, generate testcases, and track work in Jira.</span>
         </div>
       </div>
     );
